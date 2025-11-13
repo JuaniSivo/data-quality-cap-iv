@@ -1,99 +1,45 @@
 import logging
+import json
 from pathlib import Path
 from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
 
-if Path("../data/01_external").exists: P_EXT_DATA = Path("../data/01_external")
-if Path("data/01_external").exists: P_EXT_DATA = Path("data/01_external")
-PROD_DATA_TYPES = {
-    "idempresa": {"type": "string"},
-    "anio": {"type": "int16"},
-    "mes": {"type": "int8"},
-    "idpozo": {"type": "int32"},
-    "prod_pet": {"type": "float32"},
-    "prod_gas": {"type": "float32"},
-    "prod_agua": {"type": "float32"},
-    "iny_agua": {"type": "float32"},
-    "iny_gas": {"type": "float64"},
-    "iny_co2": {"type": "float64"},
-    "iny_otro": {"type": "float64"},
-    "tef": {"type": "float32"},
-    "vida_util": {"type": "float32"},
-    "tipoextraccion": {"type": "string"},
-    "tipoestado": {"type": "string"},
-    "tipopozo": {"type": "string"},
-    "observaciones": {"type": "string"},
-    "fechaingreso": {"type": "datetime64[ns]", "format": "%Y-%m-%d %H:%M:%S.%f"},
-    "rectificado": {"type": "bool"},
-    "habilitado": {"type": "bool"},
-    "idusuario": {"type": "int64"},
-    "empresa": {"type": "string"},
-    "sigla": {"type": "string"},
-    "formprod": {"type": "string"},
-    "profundidad": {"type": "float32"},
-    "formacion": {"type": "string"},
-    "idareapermisoconcesion": {"type": "string"},
-    "areapermisoconcesion": {"type": "string"},
-    "idareayacimiento": {"type": "string"},
-    "areayacimiento": {"type": "string"},
-    "cuenca": {"type": "string"},
-    "provincia": {"type": "string"},
-    "coordenadax": {"type": "float32"},
-    "coordenaday": {"type": "float32"},
-    "tipo_de_recurso": {"type": "string"},
-    "proyecto": {"type": "string"},
-    "clasificacion": {"type": "string"},
-    "subclasificacion": {"type": "string"},
-    "sub_tipo_recurso": {"type": "string"},
-    "fecha_data": {"type": "datetime64[ns]", "format": "%Y-%m-%d"}
-}
-COMP_DATA_TYPES = {
-    "id_base_fractura_adjiv": {"type": "int32"},
-    "idpozo": {"type": "int32"},
-    "sigla": {"type": "string"},
-    "cuenca": {"type": "string"},
-    "areapermisoconcesion": {"type": "string"},
-    "yacimiento": {"type": "string"},
-    "formacion_productiva": {"type": "string"},
-    "tipo_reservorio": {"type": "string"},
-    "subtipo_reservorio": {"type": "string"},
-    "longitud_rama_horizontal_m": {"type": "float32"},
-    "cantidad_fracturas": {"type": "int8"},
-    "tipo_terminacion": {"type": "string"},
-    "arena_bombeada_nacional_tn": {"type": "float32"},
-    "arena_bombeada_importada_tn": {"type": "float32"},
-    "agua_inyectada_m3": {"type": "float64"},
-    "co2_inyectado_m3": {"type": "float64"},
-    "presion_maxima_psi": {"type": "float64"},
-    "potencia_equipos_fractura_hp": {"type": "float64"},
-    "fecha_inicio_fractura": {"type": "datetime64[ns]", "format": "%Y-%m-%d"},
-    "fecha_fin_fractura": {"type": "datetime64[ns]", "format": "%Y-%m-%d"},
-    "fecha_data": {"type": "datetime64[ns]", "format": "%Y-%m-%d %H:%M:%S.%f"},
-    "anio_if": {"type": "int16"},
-    "mes_if": {"type": "int8"},
-    "anio_ff": {"type": "int16"},
-    "mes_ff": {"type": "int8"},
-    "anio_carga": {"type": "int16"},
-    "mes_carga": {"type": "int8"},
-    "empresa_informante": {"type": "string"},
-    "mes": {"type": "int8"},
-    "anio": {"type": "int16"},
-}
+P_DATA = Path("data")
+P_EXT_DATA = P_DATA.joinpath("01_external")
+
+P_CONFIGS = Path("configs")
+P_DQR = P_CONFIGS.joinpath("data_quality_requirements.json")
+
+with open(P_DQR, "r") as f:
+    dqr = json.load(f)
+    
+PROD_DATA_TYPES = dqr.get("production")
+COMP_DATA_TYPES = dqr.get("completion")
 
 logger = logging.getLogger(__name__)
 
 def dtype_change(df: pd.DataFrame, dtype_dict: Dict[str, Dict[str, str]]) -> pd.DataFrame:
     df_aux = df.copy(True)
     for col, value in dtype_dict.items():
-        if value["type"] == "datetime64[ns]":
-            df_aux[col] = pd.to_datetime(df_aux[col], errors="coerce", format=value["format"])
+        data_type = value["data_type"]
 
-        if value["type"].startswith(("float", "int")):
-            df_aux[col] = pd.to_numeric(df_aux[col], errors="coerce")
+        # conversion to datetime
+        if data_type == "datetime64[ns]":
+            date_format = value["date_format"]
+            df_aux[col] = pd.to_datetime(
+                arg=df_aux[col],
+                errors="coerce",
+                format=date_format
+            )
 
-        df_aux[col] = df_aux[col].astype(dtype=value["type"], errors="raise")
+        # conversion to numbers
+        if data_type.startswith(("float", "int")):
+            df_aux[col] = pd.to_numeric(arg=df_aux[col], errors="coerce")
+
+        # data type change in he DataFrame
+        df_aux[col] = df_aux[col].astype(dtype=data_type, errors="raise")
 
     return df_aux
 
