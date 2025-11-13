@@ -11,7 +11,7 @@ URL_COMPLETION = "http://datos.energia.gob.ar/dataset/71fa2e84-0316-4a1b-af68-7f
 
 logger = logging.getLogger(__name__)
 
-def read_data(url: str) -> pd.DataFrame:
+def read_web_data(url: str) -> pd.DataFrame:
     """
     Read datasets from datos.energia.gob.ar.
     """
@@ -60,11 +60,24 @@ def save_data(df: pd.DataFrame, folder_path: str | Path, filename: str) -> None:
     
     return None
 
-def main() -> None:
+def save_web_data(url: str, folder_path: str | Path, filename: str) -> None:
+    """
+    Save dataset from datos.energia.gob.ar as a parquet file.
+    """
+    df = read_web_data(url=url)
+    save_data(
+        df=df,
+        folder_path=folder_path,
+        filename=filename
+    )
     
+    return None
+
+def main() -> None:
+
     for url, filename in zip([URL_PRODUCTION, URL_COMPLETION], ["production", "completion"]):
-        save_data(
-            df=read_data(url=url),
+        save_web_data(
+            url=url,
             folder_path=P_EXT_DATA,
             filename=filename
         )
