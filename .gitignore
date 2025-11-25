@@ -208,7 +208,9 @@ __marimo__/
 
 # folders
 data/
+logs/
 notebooks/
+reports/
 
 # files
 reports/*.md
