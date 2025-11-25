@@ -89,15 +89,60 @@
     },
     "tipoextraccion": {
       "required": true,
-      "data_type": "string"
+      "data_type": "string",
+      "data_range": {
+        "set": [
+          "Surgencia Natural",
+          "Plunger Lift",
+          "Bombeo Mecánico",
+          "Sin Sistema de Extracción",
+          "Gas Lift",
+          "Bombeo Hidráulico",
+          "Electrosumergible",
+          "Jet Pump",
+          "Otros Tipos de Extracción",
+          "Pistoneo (Swabbing)",
+          "Cavidad Progresiva"
+        ]
+      }
     },
     "tipoestado": {
       "required": true,
-      "data_type": "string"
+      "data_type": "string",
+      "data_range": {
+        "set": [
+          "Extracción Efectiva",
+          "Parado Transitoriamente",
+          "En Estudio",
+          "Abandonado",
+          "Otras Situación Inactivo",
+          "A Abandonar",
+          "En Reserva de Gas",
+          "En Espera de Reparación",
+          "Otras Situación Activo",
+          "Abandono Temporario",
+          "En Reparación",
+          "En Inyección Efectiva",
+          "Parado Alta Relación Agua/Petróleo",
+          "En Reserva para Recup. Sec./Asist.",
+          "Parado Alta Relación Gas/Petróleo",
+          "Mantenimiento de Presión"
+        ]
+      }
     },
     "tipopozo": {
       "required": true,
-      "data_type": "string"
+      "data_type": "string",
+      "data_range": {
+        "set": [
+          "Gasífero",
+          "Petrolífero",
+          "Otro tipo",
+          "Sumidero",
+          "Inyección de Agua",
+          "Inyección de Gas"
+        ]
+      }
     },
     "observaciones": {
       "required": true,
@@ -177,7 +222,12 @@
     },
     "tipo_de_recurso": {
       "required": true,
-      "data_type": "string"
+      "data_type": "string",
+      "data_range": {
+        "set": [
+          "NO CONVENCIONAL"
+        ]
+      }
     },
     "proyecto": {
       "required": true,
@@ -185,15 +235,40 @@
     },
     "clasificacion": {
       "required": true,
-      "data_type": "string"
+      "data_type": "string",
+      "data_range": {
+        "set": [
+          "EXPLOTACION",
+          "EXPLORACION",
+          "SERVICIO"
+        ]
+      }
     },
     "subclasificacion": {
       "required": true,
-      "data_type": "string"
+      "data_type": "string",
+      "data_range": {
+        "set": [
+          "DESARROLLO",
+          "EXPLORACION",
+          "AVANZADA",
+          "EXTENSION",
+          "EXPLORATORIO PROFUNDO",
+          "CONTROL",
+          "ESTUDIO",
+          "SUMIDERO"
+        ]
+      }
     },
     "sub_tipo_recurso": {
       "required": true,
-      "data_type": "string"
+      "data_type": "string",
+      "data_range": {
+        "set": [
+          "SHALE",
+          "TIGHT"
+        ]
+      }
     },
     "fecha_data": {
       "required": true,
@@ -217,7 +292,15 @@
     },
     "cuenca": {
       "required": true,
-      "data_type": "string"
+      "data_type": "string",
+      "data_range": {
+        "set": [
+          "NEUQUINA",
+          "AUSTRAL",
+          "GOLFO SAN JORGE",
+          "NOROESTE"
+        ]
+      }
     },
     "areapermisoconcesion": {
       "required": true,
@@ -233,17 +316,30 @@
     },
     "tipo_reservorio": {
       "required": true,
-      "data_type": "string"
+      "data_type": "string",
+      "data_range": {
+        "set": [
+          "NO CONVENCIONAL",
+          "CONVENCIONAL",
+          "NO DISCRIMINADO"
+        ]
+      }
     },
     "subtipo_reservorio": {
       "required": true,
-      "data_type": "string"
+      "data_type": "string",
+      "data_range": {
+        "set": [
+          "SHALE",
+          "TIGHT"
+        ]
+      }
     },
     "longitud_rama_horizontal_m": {
       "required": true,
       "data_type": "float32",
       "data_range": {
-        "min":  1
+        "min":  0
       }
     },
     "cantidad_fracturas": {
