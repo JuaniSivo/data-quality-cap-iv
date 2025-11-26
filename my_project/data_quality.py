@@ -11,132 +11,241 @@ P_DATA = Path("data")
 P_EXT_DATA = P_DATA.joinpath("01_external")
 
 P_CONFIGS = Path("configs")
-P_DQR = P_CONFIGS.joinpath("data_quality_requirements.json")
+P_DQR_PROD = P_CONFIGS.joinpath("dqr_production.json")
+P_DQR_COMP = P_CONFIGS.joinpath("dqr_completion.json")
 
 P_LOGS = Path("logs")
-P_LOG_FILENAME = P_LOGS.joinpath("data_auality.log")
-
-with open(P_DQR, "r") as f:
-    dqr = json.load(f)
-    
-PROD_DQR = dqr.get("production")
-COMP_DQR = dqr.get("completion")
+P_LOG_FILENAME = P_LOGS.joinpath("data_quality.log")
 
 DQR_TYPE = Dict[str, Dict[str, Any]] # {field: {required: true/false, "data_range": {"min":  2000}}}
 
 logger = logging.getLogger(__name__)
 
-class DataQualityRequirements():
-    pass
+class DataQualityRequirements:
 
-class DataQualityAssessment():
-    pass
+    def __init__(self, dqr_dict: dict = dict()) -> None:
+        self._dqr_dict = dict()
+        self._set_dqr_dict(dqr_dict)
 
-def dtype_change(df: pd.DataFrame, dict_dqr: DQR_TYPE) -> pd.DataFrame:
-    logger.debug("Starting to convert data types")
-    df_aux = df.copy(True)
-    for col, value in dict_dqr.items():
-        data_type = value["data_type"]
 
-        # conversion to datetime
-        if data_type == "datetime64[ns]":
-            date_format = value["date_format"]
-            df_aux[col] = pd.to_datetime(
-                arg=df_aux[col],
-                errors="coerce",
-                format=date_format
-            )
-            logger.debug(f"Converted {col} to datetime")
+    def _get_dqr_dict(self) -> dict:
+        if isinstance(self._dqr_dict, dict):
+            return self._dqr_dict
+        else:
+            logger.warning("The data quality requirements dict is not a dict instance. Returning an empty dict.")
+            return dict()
+        
 
-        # conversion to numbers
-        if data_type.startswith(("float", "int")):
-            df_aux[col] = pd.to_numeric(arg=df_aux[col], errors="coerce")
+    def _set_dqr_dict(self, dqr_dict: dict) -> None:
+        if isinstance(dqr_dict, dict):
+            if self.valid_dict():
+                self._dqr_dict = dqr_dict
+            else:
+                logger.error("Invalid data quality requirements dictionary")
+        else:
+            logger.error("The argument passed is not a dict instance")
+
+    
+    def load_from_json(self, path: Path | str):
+        if isinstance(path, str): path = Path(path)
+        if isinstance(path, Path):
+            with open(path, "r") as f:
+                dqr_dict = json.load(f)
+            self._set_dqr_dict(dqr_dict)
+        return self
+    
+    
+    def valid_dict(self) -> bool:
+        # TODO
+        return True
+    
+
+class DataQualityAssessment:
+
+    def __init__(self,
+                 dqr: DataQualityRequirements = DataQualityRequirements(),
+                 dataset: pd.DataFrame = pd.DataFrame()) -> None:
+        self._dqr = DataQualityRequirements()
+        self._dataset = pd.DataFrame()
+        self._dataset_typed = pd.DataFrame()
+        self._set_dqr(dqr)
+        self._set_dataset(dataset)
+
+
+    def _get_dqr(self) -> DataQualityRequirements:
+        if isinstance(self._dqr, DataQualityRequirements):
+            return self._dqr
+        else:
+            logger.warning("The data quality requirements is not a DataQualityRequirements instance. Returning an empty DataQualityRequirements instance.")
+            return DataQualityRequirements()
+        
+
+    def _get_dataset(self) -> pd.DataFrame:
+        if isinstance(self._dataset, pd.DataFrame):
+            return self._dataset
+        else:
+            logger.warning("The dataset is not a pandas.DataFrame instance. Returning an empty DataFrame.")
+            return pd.DataFrame()
+        
+
+    def _get_dataset_typed(self) -> pd.DataFrame:
+        if isinstance(self._dataset_typed, pd.DataFrame):
+            return self._dataset_typed
+        else:
+            logger.warning("The dataset is not a pandas.DataFrame instance. Returning an empty DataFrame.")
+            return pd.DataFrame()
+        
+
+    def _set_dqr(self, dqr: DataQualityRequirements) -> None:
+        if isinstance(dqr, DataQualityRequirements):
+            self._dqr = dqr
+        else:
+            logger.error(f"Data quality requirements is not {type(self)} instance")
+            raise TypeError
+        
+
+    def _set_dataset(self, dataset: pd.DataFrame) -> None:
+        if isinstance(dataset, pd.DataFrame):
+            self._dataset = dataset
+        else:
+            logger.error(f"Dataset is not {type(pd.DataFrame)} instance nor None")
+            raise TypeError
+        
+
+    def _set_dataset_typed(self, dataset: pd.DataFrame) -> None:
+        if isinstance(dataset, pd.DataFrame):
+            self._dataset_typed = dataset
+        else:
+            logger.error(f"Dataset is not {type(pd.DataFrame)} instance")
+            raise TypeError
+        
+        
+    def calc_dataset_success_perc(self, df_mask: pd.DataFrame) -> np.float32:
+        calc = df_mask.sum().sum() / df_mask.size
+        calc = calc * 100
+        return calc
+    
+
+    def calc_column_success_perc(self, df_mask: pd.DataFrame) -> pd.Series:
+        calc = df_mask.sum() / df_mask.shape[0]
+        calc = calc * 100
+        return calc
+    
+
+    def calc_column_bad_quality_count(self, df_mask: pd.DataFrame) -> pd.Series:
+        calc = df_mask.shape[0] - df_mask.sum()
+        return calc
+    
+    
+    def dimension_metrics(self, df_mask: pd.DataFrame) -> Tuple[np.float32, pd.Series, pd.Series]:
+        a = self.calc_dataset_success_perc(df_mask)
+        b = self.calc_column_success_perc(df_mask)
+        c = self.calc_column_bad_quality_count(df_mask)
+        return (a, b, c)
+    
+    
+    def is_complete(self) -> pd.DataFrame:
+        df = self._get_dataset()
+        return ~df.isnull()
+    
+    
+    def is_valid(self) -> pd.DataFrame:
+        return self.is_valid_type() & self.is_valid_range()
+    
+    
+    def is_valid_type(self) -> pd.DataFrame:
+        df = self._get_dataset()
+        df_typed = self._get_dataset_typed()
+        return df_typed.isna() == df.isna()
+    
+    
+    def is_valid_range(self) -> pd.DataFrame:
+        df_aux = self._get_dataset_typed().copy(True)
+        dqr_dict = self._get_dqr()._get_dqr_dict()
+
+        df_validity = pd.DataFrame(True, index=df_aux.index, columns=df_aux.columns)
+
+        for col, value in dqr_dict.items():
+            if "data_range" in value.keys():
+                data_range = value["data_range"]
+                column = df_aux[col]
+                missing = column.isna()
+                is_valid_masks = []
+                
+                if "min" in data_range.keys():
+                    is_valid_masks.append(column >= data_range["min"])
+                
+                if "max" in data_range.keys():
+                    is_valid_masks.append(column <= data_range["max"])
+                
+                if "set" in data_range.keys():
+                    is_valid_masks.append(column.isin(data_range["set"]))
+                
+                for is_valid_mask in is_valid_masks:
+                    is_valid_mask = is_valid_mask | missing # the missings are completeness issues, not validity issues
+                    df_validity.loc[:, col] = df_validity.loc[:, col] & is_valid_mask
+
+        return df_validity
+        
+
+    def assess_completeness(self) -> Tuple[np.float32, pd.Series, pd.Series]:
+        completeness = self.is_complete()
+        return self.dimension_metrics(completeness)
+    
+    
+    def assess_validity(self) -> Tuple[np.float32, pd.Series, pd.Series]:
+        validity = self.is_valid()
+        return self.dimension_metrics(validity)
+    
+
+    def apply_data_types(self) -> pd.DataFrame:
+        df_aux = self._get_dataset().copy(True)
+        dqr_dict = self._get_dqr()._get_dqr_dict()
+
+        for col, value in dqr_dict.items():
+            data_type = value["data_type"]
+
+            # Conversion to datetime
+            if data_type == "datetime64[ns]":
+                date_format = value["date_format"]
+                df_aux[col] = pd.to_datetime(
+                    arg=df_aux[col],
+                    errors="coerce",
+                    format=date_format
+                )
+                logger.debug(f"Converted {col} to datetime")
+
+            # Conversion to numbers
+            if data_type.startswith(("float", "int")):
+                df_aux[col] = pd.to_numeric(arg=df_aux[col], errors="coerce")
+                logger.debug(f"Converted {col} to numeric")
+
+            # Data type assignment
+            df_aux[col] = df_aux[col].astype(dtype=data_type, errors="raise")
             logger.debug(f"Converted {col} to numeric")
 
-        # data type change in he DataFrame
-        df_aux[col] = df_aux[col].astype(dtype=data_type, errors="raise")
-        logger.debug(f"Converted {col} to numeric")
-
-    logger.debug("All data types converted")
-    return df_aux
-
-def calc_dataset_perc(df_bool: pd.DataFrame) -> np.float32:
-    calc = df_bool.sum().sum() / df_bool.size
-    calc = calc * 100
-    return calc
-
-def calc_column_perc(df_bool: pd.DataFrame) -> pd.Series:
-    calc = df_bool.sum() / df_bool.shape[0]
-    calc = calc * 100
-    return calc
-
-def calc_column_null_count(df_bool: pd.DataFrame) -> pd.Series:
-    calc = df_bool.shape[0] - df_bool.sum()
-    return calc
-
-def completness(df: pd.DataFrame) -> Tuple[np.float32, pd.Series, pd.Series]:
-    completness = ~df.isnull()
-    logger.debug(f"Completeness: calculated mask for all columns")
-    a = calc_dataset_perc(completness)
-    b = calc_column_perc(completness)
-    c = calc_column_null_count(completness)
-    logger.debug("COMPLETENESS metrics calculated")
-
-    return (a, b, c)
-
-def valid_ranges_mask(df: pd.DataFrame, dict_dqr: DQR_TYPE) -> pd.DataFrame:
-    df_aux = df.copy(True)
-    df_validity = df == df
-    df_validity.loc[:, :] = True
-    for col, value in dict_dqr.items():
-        if "data_range" in value.keys():
-            data_range = value["data_range"]
-            missing = df_aux[col].isna()
-            if "min" in data_range.keys():
-                validity = df_aux[col] >= data_range["min"]
-                validity = validity | missing
-                df_validity.loc[:, col] = df_validity.loc[:, col] & validity
-                logger.debug(f"Validity range: calculated mask for {col}. Minimum: {data_range["min"]}")
-            if "max" in data_range.keys():
-                validity = df_aux[col] <= data_range["max"]
-                validity = validity | missing
-                df_validity.loc[:, col] = df_validity.loc[:, col] & validity
-                logger.debug(f"Validity range: calculated mask for {col}. Maximum: {data_range["max"]}")
-            if "set" in data_range.keys():
-                data_range_set = data_range["set"]
-                validity = df_aux[col].isin(data_range_set)
-                validity = validity | missing
-                df_validity.loc[:, col] = df_validity.loc[:, col] & validity
-                logger.debug(f"Validity range: calculated mask for {col}. Set with {len(data_range_set)} items")
-
-    return df_validity
-
-def validity(df: pd.DataFrame, dict_dqr: DQR_TYPE) -> Tuple[np.float32, pd.Series, pd.Series]:
-    df_aux = dtype_change(df, dict_dqr)
-    validity_type = df_aux.isna() == df.isna()
-    logger.debug(f"Validity data type: calculated mask for all columns")
-    validity_range = valid_ranges_mask(df_aux, dict_dqr)
-    logger.debug(f"Validity range: calculated mask for all columns")
-    validity = validity_type & validity_range
-    a = calc_dataset_perc(validity)
-    b = calc_column_perc(validity)
-    c = calc_column_null_count(validity)
-
-    logger.debug("VALIDITY metrics calculated")
-    return (a, b, c)
+        logger.debug("All data types converted")
+        self._set_dataset_typed(df_aux)
+        
+        return df_aux
+    
 
 def main():
     df_prod = pd.read_parquet(P_EXT_DATA.joinpath("production.parquet"))
     df_comp = pd.read_parquet(P_EXT_DATA.joinpath("completion.parquet"))
-    
-    print("-- COMPLETNESS --")
-    completness(df_prod)
-    
-    print("-- VALIDITY --")
-    validity(df_prod, PROD_DQR)
+
+    dqr_prod = DataQualityRequirements().load_from_json(P_DQR_PROD)
+    dqr_comp = DataQualityRequirements().load_from_json(P_DQR_COMP)
+
+    dqa_prod = DataQualityAssessment(dqr_prod, df_prod)
+    dqa_comp = DataQualityAssessment(dqr_comp, df_comp)
+
+    dqa_prod.apply_data_types()
+    print(dqa_prod.assess_completeness()[0])
+    print(dqa_prod.assess_validity()[0])
+
 
 if __name__ == "__main__":
-    # logging.basicConfig(level=logging.DEBUG)
 
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)12s - %(name)12s - %(levelname)12s - %(message)s')
@@ -146,7 +255,7 @@ if __name__ == "__main__":
     fh.setFormatter(formatter)
     
     ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
+    ch.setLevel(logging.WARNING)
     ch.setFormatter(formatter)
     
     logger.addHandler(fh)
