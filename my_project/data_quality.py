@@ -198,6 +198,11 @@ class DataQualityAssessment:
                 
                 if "set" in data_range.keys():
                     is_valid_masks.append(column.isin(data_range["set"]))
+
+                if "valid_day" in data_range.keys():
+                    date_col = data_range["valid_day"]
+                    days_in_month = df_aux[date_col].dt.daysinmonth
+                    is_valid_masks.append(column <= days_in_month)
                 
                 for is_valid_mask in is_valid_masks:
                     df_validity.loc[:, col] = df_validity.loc[:, col] & is_valid_mask
@@ -271,7 +276,7 @@ def main():
     dqa_example = DataQualityAssessment(dqr_example, df_example)
     dqa_example.apply_data_types()
     
-    print(dqa_example.is_complete() & dqa_example.is_valid())
+    print(dqa_example.is_valid_type())
 
 
 if __name__ == "__main__":
