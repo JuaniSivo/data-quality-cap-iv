@@ -66,15 +66,21 @@ class DataQualityRequirements:
         return dqr_dict[column][dimension]
     
 
-    def group_by_dimension(self, dimension: str) -> dict:
+    def group_by_dimension(self, dimension: str, subdimension: str = "") -> dict:
         dqr_dict = self._get_dqr_dict()
-        d = dict()
+        dqr_by_dimension = dict()
 
         for col in dqr_dict.keys():
             if dimension in dqr_dict[col].keys():
-                d[col] = dqr_dict[col][dimension]
+                aux = dqr_dict[col][dimension]
+
+                if subdimension in aux.keys() and subdimension != "":
+                    aux = aux[subdimension]
+
+                if aux != dict():   # if aux is not empty
+                    dqr_by_dimension[col] = aux
         
-        return d
+        return dqr_by_dimension
     
 
 class DataQualityAssessment:
@@ -209,6 +215,37 @@ class DataQualityAssessment:
 
         df_validity = df_validity | ~self.is_complete() | ~self.is_valid_type()
         return df_validity
+    
+
+    def is_integral(self) -> pd.DataFrame:
+        # return self.is_coherent() & self.is_refered()
+        return self.is_coherent()
+    
+
+    def is_coherent(self) -> pd.DataFrame:
+        df_aux = self._get_dataset_typed().copy(True)
+        df_coherence = pd.DataFrame(True, index=df_aux.index, columns=df_aux.columns)
+        dqr_coherence = self._get_dqr().group_by_dimension("integrity", "coherence")
+
+        for col in dqr_coherence.keys():
+            for parent_col in dqr_coherence[col].keys():
+                parent_col:str
+                for d in dqr_coherence[col][parent_col]:
+                    parent_set = d["parent_set"]
+                    child_set = d["child_set"]
+
+                    parent_filter = df_aux.loc[:, parent_col].isin(parent_set)
+                    col_is_coherent = df_aux.loc[parent_filter, col].isin(child_set)
+
+                    df_coherence.loc[parent_filter, col] = col_is_coherent
+        
+        df_coherence = df_coherence | ~self.is_complete() | ~self.is_valid()
+
+        return df_coherence
+    
+
+    def is_refered(self) -> pd.DataFrame:
+        return pd.DataFrame()
         
 
     def assess_completeness(self) -> Tuple[np.float32, pd.Series, pd.Series]:
@@ -219,6 +256,11 @@ class DataQualityAssessment:
     def assess_validity(self) -> Tuple[np.float32, pd.Series, pd.Series]:
         validity = self.is_valid()
         return self.dimension_metrics(validity)
+    
+    
+    def assess_integrity(self) -> Tuple[np.float32, pd.Series, pd.Series]:
+        integrity = self.is_integral()
+        return self.dimension_metrics(integrity)
     
 
     def apply_data_types(self) -> pd.DataFrame:
@@ -276,7 +318,7 @@ def main():
     dqa_example = DataQualityAssessment(dqr_example, df_example)
     dqa_example.apply_data_types()
     
-    print(dqa_example.is_valid_type())
+    print(dqa_example.is_integral())
 
 
 if __name__ == "__main__":
