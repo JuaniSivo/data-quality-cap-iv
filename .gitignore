@@ -211,6 +211,7 @@ data/
 logs/
 notebooks/
 reports/
+configs/
 
 # files
 reports/*.md
