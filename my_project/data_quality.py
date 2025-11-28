@@ -13,6 +13,7 @@ P_EXT_DATA = P_DATA.joinpath("01_external")
 P_CONFIGS = Path("configs")
 P_DQR_PROD = P_CONFIGS.joinpath("dqr_production.json")
 P_DQR_COMP = P_CONFIGS.joinpath("dqr_completion.json")
+P_DQR_EXAMPLE = P_CONFIGS.joinpath("dqr_example.json")
 
 P_LOGS = Path("logs")
 P_LOG_FILENAME = P_LOGS.joinpath("data_quality.log")
@@ -58,6 +59,22 @@ class DataQualityRequirements:
     def valid_dict(self) -> bool:
         # TODO
         return True
+    
+
+    def get_column_dimension(self, column: str, dimension: str) -> dict:
+        dqr_dict = self._get_dqr_dict()
+        return dqr_dict[column][dimension]
+    
+
+    def group_by_dimension(self, dimension: str) -> dict:
+        dqr_dict = self._get_dqr_dict()
+        d = dict()
+
+        for col in dqr_dict.keys():
+            if dimension in dqr_dict[col].keys():
+                d[col] = dqr_dict[col][dimension]
+        
+        return d
     
 
 class DataQualityAssessment:
@@ -156,20 +173,21 @@ class DataQualityAssessment:
     def is_valid_type(self) -> pd.DataFrame:
         df = self._get_dataset()
         df_typed = self._get_dataset_typed()
-        return df_typed.isna() == df.isna()
+        valid_type = df_typed.isna() == df.isna()
+        incomplete = ~self.is_complete()
+        return valid_type | incomplete
     
     
     def is_valid_range(self) -> pd.DataFrame:
         df_aux = self._get_dataset_typed().copy(True)
-        dqr_dict = self._get_dqr()._get_dqr_dict()
-
+        dqr_validity = self._get_dqr().group_by_dimension("validity")
         df_validity = pd.DataFrame(True, index=df_aux.index, columns=df_aux.columns)
 
-        for col, value in dqr_dict.items():
-            if "data_range" in value.keys():
-                data_range = value["data_range"]
+        # for col, value in dqr_dict.items():
+        for col in dqr_validity.keys():
+            if "data_range" in dqr_validity[col].keys():
+                data_range = dqr_validity[col]["data_range"]
                 column = df_aux[col]
-                missing = column.isna()
                 is_valid_masks = []
                 
                 if "min" in data_range.keys():
@@ -182,9 +200,9 @@ class DataQualityAssessment:
                     is_valid_masks.append(column.isin(data_range["set"]))
                 
                 for is_valid_mask in is_valid_masks:
-                    is_valid_mask = is_valid_mask | missing # the missings are completeness issues, not validity issues
                     df_validity.loc[:, col] = df_validity.loc[:, col] & is_valid_mask
 
+        df_validity = df_validity | ~self.is_complete() | ~self.is_valid_type()
         return df_validity
         
 
@@ -200,14 +218,16 @@ class DataQualityAssessment:
 
     def apply_data_types(self) -> pd.DataFrame:
         df_aux = self._get_dataset().copy(True)
-        dqr_dict = self._get_dqr()._get_dqr_dict()
+        # dqr_dict = self._get_dqr()._get_dqr_dict()
+        dqr_validity = self._get_dqr().group_by_dimension("validity")
 
-        for col, value in dqr_dict.items():
-            data_type = value["data_type"]
+        # for col, value in dqr_dict.items():
+        for col in dqr_validity.keys():
+            data_type = dqr_validity[col]["data_type"]
 
             # Conversion to datetime
             if data_type == "datetime64[ns]":
-                date_format = value["date_format"]
+                date_format = dqr_validity[col]["date_format"]
                 df_aux[col] = pd.to_datetime(
                     arg=df_aux[col],
                     errors="coerce",
@@ -231,24 +251,33 @@ class DataQualityAssessment:
     
 
 def main():
-    df_prod = pd.read_parquet(P_EXT_DATA.joinpath("production.parquet"))
-    df_comp = pd.read_parquet(P_EXT_DATA.joinpath("completion.parquet"))
+    # df_prod = pd.read_parquet(P_EXT_DATA.joinpath("production.parquet"))
+    # df_comp = pd.read_parquet(P_EXT_DATA.joinpath("completion.parquet"))
 
-    dqr_prod = DataQualityRequirements().load_from_json(P_DQR_PROD)
-    dqr_comp = DataQualityRequirements().load_from_json(P_DQR_COMP)
+    # dqr_prod = DataQualityRequirements().load_from_json(P_DQR_PROD)
+    # dqr_comp = DataQualityRequirements().load_from_json(P_DQR_COMP)
 
-    dqa_prod = DataQualityAssessment(dqr_prod, df_prod)
-    dqa_comp = DataQualityAssessment(dqr_comp, df_comp)
+    # dqa_prod = DataQualityAssessment(dqr_prod, df_prod)
+    # dqa_comp = DataQualityAssessment(dqr_comp, df_comp)
 
-    dqa_prod.apply_data_types()
-    print(dqa_prod.assess_completeness()[0])
-    print(dqa_prod.assess_validity()[0])
+    # dqas = [dqa_prod, dqa_comp]
+    # for dqa in dqas:
+    #     dqa.apply_data_types()
+    #     print(dqa.assess_completeness()[2])
+    #     print(dqa.assess_validity()[2])
+
+    df_example = pd.read_csv(P_EXT_DATA.joinpath("example_mod.csv"), sep=";", decimal=",")
+    dqr_example = DataQualityRequirements().load_from_json(P_DQR_EXAMPLE)
+    dqa_example = DataQualityAssessment(dqr_example, df_example)
+    dqa_example.apply_data_types()
+    
+    print(dqa_example.is_complete() & dqa_example.is_valid())
 
 
 if __name__ == "__main__":
 
     logger.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)12s - %(name)12s - %(levelname)12s - %(message)s')
+    formatter = logging.Formatter('%(asctime)12s - %(name)8s - %(levelname)12s - %(message)s')
     
     fh = logging.handlers.RotatingFileHandler(P_LOG_FILENAME, maxBytes=100000, backupCount=1)
     fh.setLevel(logging.DEBUG)
