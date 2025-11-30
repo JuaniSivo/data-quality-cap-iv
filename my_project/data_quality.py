@@ -245,7 +245,23 @@ class DataQualityAssessment:
     
 
     def is_refered(self) -> pd.DataFrame:
+        # TODO
         return pd.DataFrame()
+    
+
+    def is_unique(self) -> pd.DataFrame:
+        df_aux = self._get_dataset_typed().copy(True)
+        df_uniqueness = pd.DataFrame(True, index=df_aux.index, columns=df_aux.columns)
+        
+        dqr = self._get_dqr()
+        dqr_uniqueness = dqr.group_by_dimension("uniqueness")
+        
+        for col in dqr_uniqueness.keys():
+            unique = dqr_uniqueness[col]["unique"]
+            if unique:
+                df_uniqueness.loc[:, col] = ~df_aux.duplicated(subset=col, keep="first")
+
+        return df_uniqueness
         
 
     def assess_completeness(self) -> Tuple[np.float32, pd.Series, pd.Series]:
@@ -261,6 +277,11 @@ class DataQualityAssessment:
     def assess_integrity(self) -> Tuple[np.float32, pd.Series, pd.Series]:
         integrity = self.is_integral()
         return self.dimension_metrics(integrity)
+    
+    
+    def assess_uniqueness(self) -> Tuple[np.float32, pd.Series, pd.Series]:
+        uniqueness = self.is_unique()
+        return self.dimension_metrics(uniqueness)
     
 
     def apply_data_types(self) -> pd.DataFrame:
@@ -318,7 +339,7 @@ def main():
     dqa_example = DataQualityAssessment(dqr_example, df_example)
     dqa_example.apply_data_types()
     
-    print(dqa_example.is_integral())
+    print(dqa_example.is_unique())
 
 
 if __name__ == "__main__":
